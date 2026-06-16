@@ -1,0 +1,25 @@
+name: Build Pikafish Android (ARMv8)
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up NDK
+      uses: android-actions/setup-android@v3
+      with:
+        ndk-version: r25c
+
+    - name: Build Pikafish
+      run: |
+        cd src
+        make -j$(nproc) build ARCH=armv8 COMP=ndk LDFLAGS="-static"
+        
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: pikafish-android-armv8
+        path: src/pikafish
