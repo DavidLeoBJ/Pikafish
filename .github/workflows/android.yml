@@ -22,9 +22,37 @@ jobs:
       run: |
         cd src
         make -j$(nproc) ARCH=armv8 build
+name: Android ARM64 Build Fixed
+
+on:
+  push:
+    branches: [ fix/android-tls-alignment ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    # 重点：升级到最新的 Ubuntu 22.04 环境
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Android NDK
+      # 重点：使用官方 action，自动配置最新的 NDK
+      uses: android-actions/setup-android@v3
+      with:
+        # 这里指定 r26 版本，目前非常稳定
+        ndk-version: r26
+
+    - name: Build Pikafish for Android ARM64
+      run: |
+        cd src
+        # 重点：官方 action 会自动设置好环境变量，咱们直接用 $ANDROID_NDK_ROOT
+        make -j$(nproc) ARCH=armv8 TOOLSRC=$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake build
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: pikafish-android-arm64
+        name: pikafish-android-arm64-fixed
         path: src/pikafish
