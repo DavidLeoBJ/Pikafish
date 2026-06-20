@@ -1,4 +1,4 @@
-name: Android ARM64 Pikafish Build (TLS Fix)
+name: Android ARM64 Pikafish (Final Fix)
 on:
   push:
     branches: [ fix/android-tls-alignment ]
@@ -9,16 +9,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Android NDK r26 (Official - No 404)
-        uses: android-actions/setup-android@v3
-        with:
-          ndk-version: '26.1.10909125'  # 官方锁定的稳定版，永不404
-          accept-android-sdk-licenses: true
+      - name: Install NDK r26 via SDK Manager
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
       - name: Build Pikafish ARM64
         run: |
           cd src
-          export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+          export PATH=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
           export CC=aarch64-linux-android21-clang
           export CXX=aarch64-linux-android21-clang++
           make clean
@@ -26,5 +25,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: pikafish-android-arm64v8a-tls-fixed
+          name: pikafish-android-arm64
           path: src/pikafish
