@@ -1,4 +1,4 @@
-name: Android ARM64 Pikafish (The Final Boss)
+name: Android ARM64 Pikafish (The One)
 on:
   push:
     branches: [ fix/android-tls-alignment ]
@@ -17,16 +17,23 @@ jobs:
           mv android-ndk-r26 $HOME/android-ndk
           echo "ANDROID_NDK_ROOT=$HOME/android-ndk" >> $GITHUB_ENV
 
-      - name: Build Pikafish (Force Clang)
+      - name: Build with Explicit Clang
         run: |
           cd src
           export TOOLCHAIN=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64
           
-          # 关键：直接在 make 命令行中强制指定编译器路径和 TLS 参数
-          make -j$(nproc) ARCH=armv8 build \
-            CC=$TOOLCHAIN/bin/aarch64-linux-android21-clang \
-            CXX=$TOOLCHAIN/bin/aarch64-linux-android21-clang++ \
-            EXTRA_LDFLAGS="-Wl,-z,max-page-size=65536"
+          # 直接定义编译器和 flags，完全绕过 Makefile 的架构猜测
+          export CC=$TOOLCHAIN/bin/aarch64-linux-android21-clang
+          export CXX=$TOOLCHAIN/bin/aarch64-linux-android21-clang++
+          export CXXFLAGS="-std=c++17 -O3 -DNDEBUG -DIS_64BIT -DUSE_NEON=8"
+          export LDFLAGS="-Wl,-z,max-page-size=65536 -static-libstdc++"
+          
+          echo "=== Using Compiler ==="
+          $CXX --version
+          
+          echo "=== Compiling ==="
+          # 直接调用 make，但不传 ARCH，让它用我们刚才定义的全局变量
+          make -j$(nproc) build
 
       - uses: actions/upload-artifact@v4
         with:
