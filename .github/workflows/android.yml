@@ -1,4 +1,4 @@
-name: Android ARM64 Pikafish (Ready To Eat)
+name: Android ARM64 Pikafish (Final Link Fix)
 on:
   push:
     branches: [ fix/android-tls-alignment ]
@@ -17,14 +17,14 @@ jobs:
           mv android-ndk-r26 $HOME/android-ndk
           echo "ANDROID_NDK_ROOT=$HOME/android-ndk" >> $GITHUB_ENV
 
-      - name: Build Pikafish (Strip Unused Libs)
+      - name: Build Pikafish (Override Linker Flags)
         run: |
           cd src
           export TOOLCHAIN=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64
           
           make clean
           
-          # 核心改动：LIBS 只保留 atomic，去掉 pthread 和 rt
+          # 直接完全覆盖LDFLAGS，不让Makefile偷偷加多余的库
           make -j$(nproc) build \
             ARCH=armv8 \
             COMP=clang \
@@ -35,10 +35,4 @@ jobs:
             USE_NEON=8 \
             CC=$TOOLCHAIN/bin/aarch64-linux-android21-clang \
             CXX=$TOOLCHAIN/bin/aarch64-linux-android21-clang++ \
-            LIBS='-latomic' \
-            EXTRA_LDFLAGS="-Wl,-z,max-page-size=65536 -static-libstdc++"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pikafish-android-arm64v8a
-          path: src/pikafish
+            LDFLAGS="-Wl,-z,max-page-size=65536 -static-libstdc++ -latomic"
