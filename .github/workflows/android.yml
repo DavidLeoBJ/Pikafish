@@ -36,3 +36,9 @@ jobs:
             CC=$TOOLCHAIN/bin/aarch64-linux-android21-clang \
             CXX=$TOOLCHAIN/bin/aarch64-linux-android21-clang++ \
             LDFLAGS="-Wl,-z,max-page-size=65536 -static-libstdc++ -latomic"
+
+- name: Upload compiled binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: pikafish-android-arm64
+          path: build/bin/pikafish  # 这是默认输出路径，如果你的路径不同请修改这里
