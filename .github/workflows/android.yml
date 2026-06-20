@@ -21,7 +21,7 @@ jobs:
     - name: Build Pikafish for Android ARM64
       run: |
         cd src
-        make -j$(nproc) ARCH=armv8 build LDFLAGS="-Wl,-z,max-page-size=65536"
+        make -j$(nproc) ARCH=armv8 build EXTRA_LDFLAGS="-Wl,-z,max-page-size=65536"
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
