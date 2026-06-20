@@ -1,5 +1,4 @@
-name: Android ARM64 Pikafish Build (TLS 64KB Alignment Fix)
-run-name: Build Android ARM64 Pikafish (TLS Fixed)
+name: Android ARM64 Pikafish Build (TLS Fix)
 
 on:
   push:
@@ -12,67 +11,73 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # 1. 拉取代码
-      - name: 1. Checkout Source Code
+      # Step 1: 拉代码
+      - name: 1. Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      # 2. 【核心修改】手动下载并安装 NDK (带断点续传和重试，最稳！)
-      - name: 2. Manual Install Android NDK r26 (Super Stable)
+      # Step 2: 装 NDK（手动稳下版，不依赖第三方action）
+      - name: 2. Install Android NDK r26
         run: |
-          # 1. 更新系统并安装必要工具
-          sudo apt-get update -y
-          sudo apt-get install -y wget unzip
-          
-          # 2. 设置变量
+          set -e
           NDK_ZIP="android-ndk-r26-linux.zip"
-          NDK_PATH="$HOME/android-ndk/android-26"
-          
-          echo "=== 检查本地是否有缓存的 NDK ==="
-          if [ -d "$NDK_PATH" ]; then
-            echo "✅ 发现已存在的 NDK，跳过下载，直接使用！"
+          NDK_DIR="$HOME/android-ndk/android-ndk-r26"
+          if [ -d "$NDK_DIR" ]; then
+            echo "✅ NDK already cached"
           else
-            echo "⏳ 未发现缓存，开始从 Google 下载 (带 5 次重试机制)..."
-            # 使用 wget 下载，--tries=5 表示失败自动重试 5 次
-            wget -q --tries=5 --timeout=30 --continue \
+            echo "⬇️  Downloading NDK..."
+            mkdir -p /tmp/ndk_cache
+            wget --tries=5 --timeout=60 --continue \
               "https://dl.google.com/android/repository/${NDK_ZIP}" \
-              -O /tmp/$NDK_ZIP
-            
-            echo "✅ 下载完毕，开始解压 (这可能需要几分钟，请耐心等待)..."
+              -O /tmp/ndk_cache/$NDK_ZIP
             mkdir -p $HOME/android-ndk
-            unzip -q /tmp/$NDK_ZIP -d $HOME/android-ndk
-            rm -f /tmp/$NDK_ZIP
-            echo "✅ NDK 解压完成！"
+            echo "📦 Extracting NDK (be patient, ~2min)..."
+            unzip -q /tmp/ndk_cache/$NDK_ZIP -d $HOME/android-ndk
+            rm -f /tmp/ndk_cache/$NDK_ZIP
+            echo "✅ NDK extracted"
           fi
+          # 写环境变量给后续步骤用
+          echo "ANDROID_NDK_ROOT=$HOME/android-ndk/android-ndk-r26" >> $GITHUB_ENV
+          echo "NDK_SYSROOT=$HOME/android-ndk/android-ndk-r26/toolchains/llvm/prebuilt/linux-x86_64/sysroot" >> $GITHUB_ENV
 
-          # 3. 强制写入环境变量，确保后续步骤一定能找到它
-          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
-          echo "NDK=$NDK_PATH" >> $GITHUB_ENV
-          echo "PATH=$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH" >> $GITHUB_ENV
-
-      # 3. 编译 Pikafish
-      - name: 3. Build Pikafish ARM64 with TLS Fix
+      # Step 3: 编译（干净环境，不加干扰参数）
+      - name: 3. Build Pikafish ARM64
         run: |
+          set -e
           cd src
-          # 手动指定编译器路径
-          export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+
+          TOOLCHAIN=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64
+          export PATH="$TOOLCHAIN/bin:$PATH"
           export CC=aarch64-linux-android21-clang
           export CXX=aarch64-linux-android21-clang++
-          
-          make clean
-          echo "=== 开始编译 ARM64 (TLS 修复版) ==="
-          make -j$(nproc) ARCH=armv8 build
-          
-          if [ ! -f "pikafish" ]; then
-            echo "❌ 编译失败"
-            exit 1
-          fi
-          echo "✅ 编译成功！"
-          ls -lh pikafish
 
-      # 4. 上传产物
-      - name: 4. Upload Build Artifact
+          echo "=== Toolchain check ==="
+          which $CC
+          $CC --version | head -1
+
+          echo "=== Files in src/ ==="
+          ls *.cpp *.h 2>/dev/null | head -20
+
+          echo "=== Trying make ARCH=armv8 ==="
+          make clean
+          make -j$(nproc) ARCH=armv8 build \
+            CC=$TOOLCHAIN/bin/aarch64-linux-android21-clang \
+            CXX=$TOOLCHAIN/bin/aarch64-linux-android21-clang++ \
+            LDFLAGS="-Wl,-z,max-page-size=65536" || {
+            echo ""
+            echo "❌ make failed. Let's see what targets are available:"
+            make help 2>/dev/null || head -50 Makefile
+            exit 1
+          }
+
+          echo "=== Done ==="
+          ls -lh pikafish
+          file pikafish
+
+      # Step 4: 上传
+      - name: 4. Upload Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pikafish-android-arm64v8a-tls-fixed
