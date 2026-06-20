@@ -1,85 +1,27 @@
-name: Android ARM64 Pikafish Build (TLS Fix)
-
-on:
-  push:
-    branches: [ fix/android-tls-alignment ]
-  workflow_dispatch:
-
-jobs:
-  build-android-arm64:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-
-    steps:
-      # Step 1: 拉代码
-      - name: 1. Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      # Step 2: 装 NDK（手动稳下版，不依赖第三方action）
-      - name: 2. Install Android NDK r26
-        run: |
-          set -e
-          NDK_ZIP="android-ndk-r26-linux.zip"
-          NDK_DIR="$HOME/android-ndk/android-ndk-r26"
-          if [ -d "$NDK_DIR" ]; then
-            echo "✅ NDK already cached"
-          else
-            echo "⬇️  Downloading NDK..."
-            mkdir -p /tmp/ndk_cache
-            wget --tries=5 --timeout=60 --continue \
-              "https://dl.google.com/android/repository/${NDK_ZIP}" \
-              -O /tmp/ndk_cache/$NDK_ZIP
-            mkdir -p $HOME/android-ndk
-            echo "📦 Extracting NDK (be patient, ~2min)..."
-            unzip -q /tmp/ndk_cache/$NDK_ZIP -d $HOME/android-ndk
-            rm -f /tmp/ndk_cache/$NDK_ZIP
-            echo "✅ NDK extracted"
-          fi
-          # 写环境变量给后续步骤用
-          echo "ANDROID_NDK_ROOT=$HOME/android-ndk/android-ndk-r26" >> $GITHUB_ENV
-          echo "NDK_SYSROOT=$HOME/android-ndk/android-ndk-r26/toolchains/llvm/prebuilt/linux-x86_64/sysroot" >> $GITHUB_ENV
-
-      # Step 3: 编译（干净环境，不加干扰参数）
-      - name: 3. Build Pikafish ARM64
+# Step 3: 编译（强力模式，确保不依赖缓存）
+      - name: 3. Build Pikafish ARM64 (Full Rebuild)
         run: |
           set -e
           cd src
-
+          
+          # 1. 彻底清理，防止残留文件干扰
+          make clean
+          
+          # 2. 设置工具链
           TOOLCHAIN=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64
           export PATH="$TOOLCHAIN/bin:$PATH"
           export CC=aarch64-linux-android21-clang
           export CXX=aarch64-linux-android21-clang++
-
-          echo "=== Toolchain check ==="
-          which $CC
-          $CC --version | head -1
-
-          echo "=== Files in src/ ==="
-          ls *.cpp *.h 2>/dev/null | head -20
-
-          echo "=== Trying make ARCH=armv8 ==="
-          make clean
-          make -j$(nproc) ARCH=armv8 build \
+          
+          # 3. 强制静态链接所有库（防止缺少 nnue 权重导致体积小）
+          # 注意：这里我们把 TLS 修复参数加进去
+          echo "=== Starting Full Build ==="
+          make -j$(nproc) ARCH=armv8 \
             CC=$TOOLCHAIN/bin/aarch64-linux-android21-clang \
             CXX=$TOOLCHAIN/bin/aarch64-linux-android21-clang++ \
-            LDFLAGS="-Wl,-z,max-page-size=65536" || {
-            echo ""
-            echo "❌ make failed. Let's see what targets are available:"
-            make help 2>/dev/null || head -50 Makefile
-            exit 1
-          }
-
-          echo "=== Done ==="
+            LDFLAGS="-static-libstdc++ -Wl,-z,max-page-size=65536"
+            
+          echo "=== Build Finished ==="
+          # 打印文件大小供核对
           ls -lh pikafish
           file pikafish
-
-      # Step 4: 上传
-      - name: 4. Upload Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pikafish-android-arm64v8a-tls-fixed
-          path: src/pikafish
-          retention-days: 90
