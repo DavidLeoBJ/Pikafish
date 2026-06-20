@@ -1,43 +1,41 @@
-- name: 2. Download & Setup Android NDK r26 (Linux x86_64)
+name: Android ARM64 Pikafish Build (TLS 64KB Alignment Fix)
+run-name: Build Android ARM64 Pikafish (TLS Fixed)
+on:
+  push:
+    branches: [ fix/android-tls-alignment ]
+  workflow_dispatch:
+jobs:
+  build-android-arm64:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: 1. Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: 2. Setup Android NDK r26 (Official Stable Version)
+        uses: android-actions/setup-android@v3
+        with:
+          ndk-version: '26.1.10909125'
+          accept-android-sdk-licenses: true
+      - name: 3. Build Pikafish ARM64 with TLS Fix
         run: |
-          # 定义变量
-          NDK_ZIP="android-ndk-r26-linux.zip"
-          NDK_PATH="$HOME/android-ndk/android-ndk-r26"
-          
-          echo "::group::Checking existing NDK..."
-          # 如果已经存在解压好的文件夹，直接用
-          if [ -d "$NDK_PATH" ]; then
-            echo "✅ Found existing NDK, skipping download."
-          else
-            echo "⏳ NDK not found, starting download..."
-            
-            # 设置重试次数和超时时间
-            RETRIES=5
-            TIMEOUT=300 # 5分钟超时
-            
-            # 使用 wget 下载，加了 --tries 和 --timeout 参数
-            # 如果你之前的命令是 curl，也可以用 curl -L --retry 5 --connect-timeout 60
-            wget -q --tries=$RETRIES --timeout=$TIMEOUT \
-                 "https://dl.google.com/android/repository/${NDK_ZIP}" \
-                 -O /tmp/$NDK_ZIP
-                 
-            echo "✅ Download finished."
-            
-            echo "::group::Unzipping NDK..."
-            mkdir -p $HOME/android-ndk
-            unzip -q /tmp/$NDK_ZIP -d $HOME/android-ndk
-            rm -f /tmp/$NDK_ZIP
-            echo "::endgroup::"
-          fi
-
-          # 设置环境变量
-          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
-          echo "NDK=$NDK_PATH" >> $GITHUB_ENV
-          
-          # 校验一下编译器是否存在
-          COMPILER="$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang++"
-          if [ ! -f "$COMPILER" ]; then
-            echo "❌ ERROR: Compiler not found after download!"
+          cd src
+          export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+          export CC=aarch64-linux-android21-clang
+          export CXX=aarch64-linux-android21-clang++
+          make clean
+          echo "=== 开始编译ARM64版本（TLS 64KB对齐）==="
+          make -j$(nproc) ARCH=armv8 build
+          if [ ! -f "pikafish" ]; then
+            echo "❌ 编译失败：未生成pikafish二进制文件"
             exit 1
           fi
-          echo "✅ NDK Check OK: $($COMPILER --version | head -n1)"
+          echo "✅ 编译成功！产物信息："
+          ls -lh pikafish
+      - name: 4. Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pikafish-android-arm64v8a-tls-fixed
+          path: src/pikafish
+          retention-days: 90
