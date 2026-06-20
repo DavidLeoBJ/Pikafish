@@ -1,0 +1,30 @@
+name: Android ARM64 Build
+
+on:
+  push:
+    branches: [ fix/android-tls-alignment ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Android NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r30
+
+    - name: Build Pikafish for Android ARM64
+      run: |
+        cd src
+        make -j$(nproc) ARCH=armv8 build
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: pikafish-android-arm64
+        path: src/pikafish
