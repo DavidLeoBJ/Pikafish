@@ -24,7 +24,6 @@ jobs:
           
           make clean
           
-          # 直接完全覆盖LDFLAGS，不让Makefile偷偷加多余的库
           make -j$(nproc) build \
             ARCH=armv8 \
             COMP=clang \
@@ -37,8 +36,8 @@ jobs:
             CXX=$TOOLCHAIN/bin/aarch64-linux-android21-clang++ \
             LDFLAGS="-Wl,-z,max-page-size=65536 -static-libstdc++ -latomic"
 
-- name: Upload compiled binary
+      - name: Upload compiled binary
         uses: actions/upload-artifact@v4
         with:
-          name: pikafish-android-arm64
-          path: build/bin/pikafish  # 这是默认输出路径，如果你的路径不同请修改这里
+          name: pikafish-android-arm64v8a
+          path: src/pikafish
