@@ -595,6 +595,7 @@ ifeq ($(COMP),ndk)
 	endif
 	ifeq ($(arch),armv8)
 		CXX=aarch64-linux-android21-clang++
+		LDFLAGS += -static-pie -Wl,-z,max-page-size=65536 -Wl,--hash-style=gnu
 		ifneq ($(shell which aarch64-linux-android-strip 2>/dev/null),)
 			STRIP=aarch64-linux-android-strip
 		else
